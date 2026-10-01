@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#003366"/>
+  <path d="M32 12 L48 20 V32 C48 42 41 49 32 52 C23 49 16 42 16 32 V20 Z" fill="#00A99D"/>
+  <text x="32" y="38" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#003366" text-anchor="middle">BPK</text>
+</svg>
