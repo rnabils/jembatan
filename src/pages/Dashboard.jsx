@@ -5,6 +5,8 @@ import { useData } from '../context/DataContext'
 import { ServiceCard } from '../components/ServiceCard'
 import { SERVICE_META } from '../data/serviceMeta'
 import { DashboardHeader } from '../components/layout/DashboardHeader'
+import { BudgetOverview } from '../components/budget/BudgetOverview'
+import { HrOverview } from '../components/hr/HrOverview'
 import { AgendaCalendar } from '../components/agenda/AgendaCalendar'
 import { AgendaListItem } from '../components/agenda/AgendaListItem'
 import { AgendaEventDetail } from '../components/agenda/AgendaEventDetail'
@@ -32,7 +34,7 @@ function parseDateInputValue(value) {
 }
 
 export default function Dashboard() {
-  const { documents, agendaEvents, divisions, getDocumentDivision, getDocumentCategories } = useData()
+  const { documents, agendaEvents, divisions, getDocumentDivision, getDocumentCategories, stats } = useData()
   const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()))
   const [detailEvent, setDetailEvent] = useState(null)
@@ -44,6 +46,11 @@ export default function Dashboard() {
   const selectedDivisionId = sessionStorage.getItem('bpk-dashboard-selected-division') || 'finance'
   const division = getDocumentDivision(selectedDivisionId) || getDocumentDivision('finance')
   const categories = getDocumentCategories(selectedDivisionId) || getDocumentCategories('finance')
+
+  const isFinanceDashboard = selectedDivisionId === 'finance'
+  const isHrDashboard = selectedDivisionId === 'hr'
+  // Kartu layanan dilepas di bidang yang sudah punya ringkasannya sendiri.
+  const adaRingkasanBidang = isFinanceDashboard || isHrDashboard
 
   const divisionDocuments = useMemo(
     () => documents.filter((document) => document.divisionId === selectedDivisionId),
@@ -165,19 +172,35 @@ export default function Dashboard() {
       </div>
       */}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {overviewCards.map((item) => (
-          <ServiceCard
-            key={item.id}
-            title={item.title}
-            value={item.value}
-            subtitle={item.subtitle}
-            icon={item.icon}
-            color={item.color}
-            onClick={goToDivision}
-          />
-        ))}
-      </div>
+      {/* Angka anggaran hanya relevan di dashboard Keuangan. Sumbernya
+          stats.budget - dokumen anggaran yang sama dengan yang dibaca layanan
+          Realisasi Anggaran, jadi begitu berkasnya diganti, grafik di sini ikut
+          berubah tanpa ada angka yang perlu disunting. */}
+      {isFinanceDashboard && <BudgetOverview budget={stats.budget} />}
+
+      {/* Angka SDM dibaca dari berkas bezetting yang diunggah di layanan
+          Bezetting, bukan dari basis data. */}
+      {isHrDashboard && <HrOverview divisionId={selectedDivisionId} />}
+
+      {/* Di bidang yang sudah punya ringkasan sendiri, kartu ini dilepas:
+          angkanya cuma jumlah dokumen per layanan, yang sudah tertera di
+          sidebar, dan di bawah ringkasan ia justru menggeser kalender jauh ke
+          bawah. Bidang lain tetap memakainya. */}
+      {!adaRingkasanBidang && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {overviewCards.map((item) => (
+            <ServiceCard
+              key={item.id}
+              title={item.title}
+              value={item.value}
+              subtitle={item.subtitle}
+              icon={item.icon}
+              color={item.color}
+              onClick={goToDivision}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

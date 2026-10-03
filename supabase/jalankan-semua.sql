@@ -419,7 +419,61 @@ create index if not exists documents_valid_until_idx
 
 
 -- ----------------------------------------------------------------------------
--- 8. Muat ulang cache skema
+-- 8. Angka bidang yang diisi lewat form
+-- ----------------------------------------------------------------------------
+-- Yang diperbaiki: form "Perbarui Data" pada dashboard, untuk angka yang tidak
+-- ada di dokumen atau terlalu sering berubah untuk diurus lewat unggah berkas -
+-- misalnya jumlah pegawai yang sedang cuti.
+-- Bila dilewat: formnya tetap bisa dipakai, tetapi angkanya hanya tersimpan di
+-- browser yang mengisinya dan tidak terlihat oleh pengguna lain. Aplikasi
+-- menyatakan hal itu.
+--
+-- Satu baris per bidang, isinya jsonb. Dibuat begini supaya menambah indikator
+-- baru tidak perlu mengubah struktur tabel - form menyimpan apa pun kuncinya,
+-- dan tampilan mengambil yang dikenalnya.
+
+create table if not exists public.division_metrics (
+  division_id text primary key references public.divisions(id) on delete cascade,
+  values jsonb not null default '{}'::jsonb,
+  note text,
+  updated_by uuid references public.profiles(id) on delete set null,
+  updated_by_name text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.division_metrics enable row level security;
+
+drop policy if exists "Authenticated users can read division metrics" on public.division_metrics;
+drop policy if exists "Division members can write division metrics" on public.division_metrics;
+drop policy if exists "Division members can update division metrics" on public.division_metrics;
+
+-- Angkanya tampil di dashboard yang dibuka semua pengguna, jadi dibaca siapa
+-- saja yang sudah masuk. Yang mengubah hanya admin dan pegawai bidang itu
+-- sendiri - bidang lain tidak bisa menulis angka bidang orang.
+create policy "Authenticated users can read division metrics"
+  on public.division_metrics for select to authenticated using (true);
+
+create policy "Division members can write division metrics"
+  on public.division_metrics for insert to authenticated
+  with check (
+    public.current_profile_role() = 'admin'
+    or public.current_profile_division() = division_id
+  );
+
+create policy "Division members can update division metrics"
+  on public.division_metrics for update to authenticated
+  using (
+    public.current_profile_role() = 'admin'
+    or public.current_profile_division() = division_id
+  )
+  with check (
+    public.current_profile_role() = 'admin'
+    or public.current_profile_division() = division_id
+  );
+
+
+-- ----------------------------------------------------------------------------
+-- 9. Muat ulang cache skema
 -- ----------------------------------------------------------------------------
 -- PostgREST menyimpan cache skema. Tanpa baris ini kolom yang baru ditambahkan
 -- masih bisa dilaporkan "could not find the column ... in the schema cache".
@@ -428,7 +482,7 @@ notify pgrst, 'reload schema';
 
 
 -- ----------------------------------------------------------------------------
--- 9. Pemeriksaan hasil
+-- 10. Pemeriksaan hasil
 -- ----------------------------------------------------------------------------
 -- Semua baris harus berbunyi OK. Yang masih BELUM berarti bagian itu gagal dan
 -- perlu dilihat pesan galatnya di atas.
@@ -491,4 +545,8 @@ select 'Metadata kerja sama (documents.valid_until)',
          group by table_name
          having count(*) = 3
        ) then 'OK' else 'BELUM' end
+union all
+select 'Angka bidang (public.division_metrics)',
+       case when to_regclass('public.division_metrics') is not null
+       then 'OK' else 'BELUM' end
 order by 1;
